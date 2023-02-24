@@ -263,5 +263,227 @@ const login = async function (req, res) {
 };
 
 
+const getProfile = async function (req, res) {
+  try {
+    const param = req.params.userId;
 
-module.exports = { register, login };
+    if(!validator.isValidObjectId(param))
+      return res.status(400).send({status :false, message:"invalid UserId !!"})
+
+    const data = await userModel.findById(param);
+    if (!data)
+      return res
+        .status(400)
+        .send({ status: false, message: "Profile not found" });
+    return res
+      .status(200)
+      .send({ status: true, message: "Success", data: data });
+  } catch (err) {
+    return res.status(500).send({ status: false, message: err.message });
+  }
+};
+
+const updateProfile = async function (req, res) {
+  try {
+    const param = req.params.userId;
+    const body = req.body;
+    const profileImage = req.files;
+
+    if(!validator.isValidBody(body))
+      return res.status(400).send({ status :false, message:"Please enter some inputs !!" });
+
+    const { fname, lname, email, phone, address } = body;
+    let password = body.password;
+    const update = {};
+
+    // <--------reqBody validation----------------->
+     if (!validator.isValidBody(body)) return res.status(400).send({ status: false, message: "Provide details incide body" })
+
+    // <---------Fname validation---------------->
+    if (fname) {
+      if (!/^[A-Za-z]{2,15}$/.test(fname.trim()))
+        return res
+          .status(400)
+          .send({ status: false, message: "fname not valid" });
+      update["fname"] = fname;
+    }
+
+    // <--------lname validation---------------->
+    if (lname) {
+      if (!/^[A-Za-z]{2,15}$/.test(lname.trim()))
+        return res
+          .status(400)
+          .send({ status: false, message: "lname not valid" });
+      update["lname"] = lname;
+    }
+
+    // <--------email validation---------------->
+    if (email) {
+      if (!validator.isValidEmail(email))
+        return res
+          .status(400)
+          .send({ status: false, message: "Enter valid email" });
+      // <--------Check Email is Exist in db or not-------------->
+      const uniqueEmail = await userModel.findOne({ email });
+      console.log(uniqueEmail)
+      if (uniqueEmail)
+        return res
+          .status(409)
+          .send({ status: false, message: "email is already exist" });
+      update["email"] = email;
+    }
+
+    // <--------profile image validation & upload on the aws server------------->
+    if (profileImage && profileImage.length > 0) {
+      if (
+        profileImage[0].mimetype == "image/jpg" ||
+        profileImage[0].mimetype == "image/png" ||
+        profileImage[0].mimetype == "image/jpeg"
+      ) {
+        const uploadImage = await uploadFile(profileImage[0]);
+        update["profileImage"] = uploadImage;
+      } else
+        return res
+          .status(400)
+          .send({
+            status: false,
+            message: "Profile image should be in jpg, jpeg or png format !!",
+          });
+    }
+
+    // <----------Phone validation-------------->
+    if (phone) {
+      if (!validator.isValidMobile(phone))
+        return res
+          .status(400)
+          .send({
+            status: false,
+            message: "phone is not in the valid formate",
+          });
+      // <-----------Check phone number is exist in db or not-------------->
+      const uniquePhone = await userModel.findOne({ phone });
+      if (uniquePhone)
+        return res
+          .status(409)
+          .send({ status: false, message: "phone is already exist" });
+      update["phone"] = phone;
+    }
+
+    // <---------Password validation & encrpt that---------->
+    if (password) {
+      if (!validator.isValidPassword(password))
+        return res
+          .status(400)
+          .send({
+            status: false,
+            message: "password is not in the valid formate",
+          });
+      let encryptPassword = await bcrypt.hash(password, saltRounds);
+
+      update["password"] = encryptPassword;
+    }
+
+    // <-------address body validation----------->
+    if (address) {
+      const { shipping, billing } = address;
+
+      // <-----------shipping body validation------------->
+      if (shipping) {
+        let { street, city, pincode } = shipping;
+
+        // <----------shipping street validation----------->
+        if (street) {
+          if (!validator.isValid(address.shipping.street))
+            return res
+              .status(400)
+              .send({ status: false, message: "shipping street is required" });
+          update["address.shipping.street"] = street;
+        }
+
+        // <-----------Shipping city validation----------->
+        if (city) {
+          if (!validator.isValid(address.shipping.city))
+            return res
+              .status(400)
+              .send({ status: false, message: "shipping city is required" });
+          update["address.shipping.city"] = city;
+        }
+
+        // <-----------Shipping pincode validation----------->
+        if (pincode) {
+          if (!validator.isValidNumber(parseInt(address.shipping.pincode)))
+            return res
+              .status(400)
+              .send({
+                status: false,
+                message: "shipping pincode should be number",
+              });
+          if (!validator.isValidPincode(address.shipping.pincode))
+            return res
+              .status(400)
+              .send({
+                status: false,
+                message: "shipping pincode is Invalid !!",
+              });
+          update["address.shipping.pincode"] = pincode;
+        }
+      }
+
+      // <-----------billing body validation------------->
+
+      if (billing) {
+        let { street, city, pincode } = billing;
+
+        // <----------billing street validation----------->
+        if (street) {
+          if (!validator.isValid(address.billing.street))
+            return res
+              .status(400)
+              .send({ status: false, message: "billing street is required" });
+          update["address.billing.street"] = street;
+        }
+        // <-----------billing city validation----------->
+        if (city) {
+          if (!validator.isValid(address.billing.city))
+            return res
+              .status(400)
+              .send({ status: false, message: "billing city is required" });
+          update["address.billing.city"] = city;
+        }
+        // <-----------billing pincode validation----------->
+        if (pincode) {
+          if (!validator.isValidNumber(parseInt(address.billing.pincode)))
+            return res
+              .status(400)
+              .send({
+                status: false,
+                message: "billing pincode should bhe number",
+              });
+          if (!validator.isValidPincode(address.billing.pincode))
+            return res
+              .status(400)
+              .send({
+                status: false,
+                message: "billing pincode is Invalid !!",
+              });
+          update["address.billing.pincode"] = pincode;
+        }
+      }
+    }
+
+    const updatedData = await userModel.findOneAndUpdate(
+      { _id: param },
+      update,
+      { new: true }
+    );
+    return res
+      .status(200)
+      .send({ status: true, message: "Success", data: updatedData });
+  } catch (err) {
+    return res.status(500).send({ status: false, message: err.message });
+  }
+};
+
+
+
+module.exports = { register, login,getProfile, updateProfile};

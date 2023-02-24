@@ -15,7 +15,7 @@ const Authenticate = async function (req, res, next) {
     const newToken = token.split(" ");
     token = newToken[1];
 
-    jwt.verify(token, "Unikwork", function (err, decodedToken) {
+    jwt.verify(token, "Leads_Connect", function (err, decodedToken) {
       if (err)
         return res
           .status(401)
